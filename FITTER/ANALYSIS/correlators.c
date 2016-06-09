@@ -13,7 +13,7 @@
 #include "GLU_bswap.h"
 #include "blackbox.h"
 
-//#define SIGN_FLIP
+#define SIGN_FLIP
 //#define BLACKBOX_EFFMASS
 
 void

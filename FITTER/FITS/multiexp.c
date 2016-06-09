@@ -33,19 +33,13 @@
 
 #include "fitfunc.h"
 #include "Utils.h"
+#include "blackbox.h"
 
 const static int M = 2 ;
 
-//#define STANDARD
-//#define SQUARED
-#define SUM
-//#define SQUARED_SUM
-
-// get the number of states
-int
-getm( )
+int getm( void )
 {
-  return 2 * M ;
+  return 2*M ;
 }
 
 // provide a description of the function
@@ -55,172 +49,64 @@ mexp_description( const char *message ,
 		 const struct x_descriptor X ,
 		 const int NPARAMS )
 {
-  printf( "%s multi-exponential fit\n" , message ) ;
-  char str[ 256 ] = {} ;
-  int i ;
-  for( i = 0 ; i < M ; i++ ) {
-    sprintf( str , "%s%f^2" , str , params[i] ) ;
-    printf( "(%f)^2 * exp{ -( %s ) } \n" , params[M+i] , str ) ;
-    sprintf( str , "%s + " , str ) ;
+  int m ;
+  for( m = 0 ; m < M ; m++ ) {
+    printf( "%s :: y = %f * ( mexp( -%f * x ) ) \n" ,
+	    message , params[1 + 2*m] , params[0+2*m] ) ;
   }
-
   return ;
-}
-
-// regression for the effective mass guesses
-/*
-  TODO :: run this backwards in the hope that we find the lightest meff first, subtract it
-  and then the second and so on
- */
-static bool
-effmass_regress( double *mass , 
-		 double *amp ,
-		 const double *y , 
-		 const double *X ,
-		 const int NDATA ,
-		 const double MASS_TOL )
-{
-  // effective mass solution
-  int i = 0 , N = 0 ;
-  double effmass_prev = -log( y[i+1] / y[i] ) / ( X[i+1] - X[i] ) ;
-  double effmass_this = 0.0 ;
-
-  double sumx = 0.0 , sumy = 0.0 , sumxy = 0.0 , sumxx = 0.0 ;
-  for( i = 1 ; i < NDATA ; i++ ) {
-    if( y[i] < 0.0 ) break ;
-    effmass_this = -log( fabs( y[i+1] / y[i] ) ) / ( X[i+1] - X[i] ) ;
-    if( fabs( effmass_this - effmass_prev ) < MASS_TOL ) {
-      // regression coefficients
-      sumx += X[i] ;
-      sumy += log( fabs( y[i] ) ) ;
-      sumxx += X[i] * X[i] ;
-      sumxy += X[i] * log( fabs( y[i] ) ) ;
-      N++ ;
-    }
-    effmass_prev = effmass_this ;
-  }
-
-  // just in case
-  if( N < 2 ) {
-    printf( "None accepted ... Using previous parameters !! \n" ) ;
-    return false ;
-  }
-
-  const double slope = ( sumx * sumy - N * sumxy ) / ( sumx * sumx - N * sumxx ) ;
-  const double y_intercept = ( sumy - slope * sumx) / ( N ) ;
-
-#if DEBUG
-  printf( "sumx %f \n" , sumx ) ;
-  printf( "sumy %f \n" , sumy ) ;
-  printf( "sumxy %f \n" , sumxy ) ;
-  printf( "sumxx %f \n" , sumxx ) ;
-  printf( "%d \n" , N ) ;
-  printf( "slope %f \n" , slope ) ;
-  printf( "y-intercept %f \n" , y_intercept ) ;
-#endif
-
-  *mass = -slope ;
-  *amp = exp( y_intercept ) ;
-  return true ;
 }
 
 // I provide a guess too
 void
 mexp_guess( double *__restrict params ,
-	    void *data ,
-	    const int NPARAMS )
+	   void *data ,
+	   const int NPARAMS )
 {
   const struct data* DATA = (const struct data*)data ;
-  double tempdata[ DATA -> NDATA[0] ] ;
 
-  int i ;
-  for( i = 0 ; i < DATA -> NDATA[0] ; i++ ) {
-    tempdata[ i ] = DATA -> y[ i ] ;
-  }
+  int k , xposit = 0 ;
+  for( k = 0 ; k < DATA->SIMS ; k++ ) {
+    double tempdata[ DATA -> NDATA[k] ] ;
 
-  double summass = 0.0 , summasssq = 0.0 , sumamp = 0.0 ;
-  int k ;
-  for( k = 0 ; k < M ; k++ ) {
-
-    // regression using logs to get the mass and amplitude
-    if( effmass_regress( &params[k] , &params[k+M] ,
-			 tempdata , 
-			 DATA->X ,
-			 DATA->NDATA[0] ,
-			 0.075 + 0.66 * k // this is a fudge parameter :: estimates how constant our meff is
-			 ) == false ) {
-      if( k > 0 ) {
-	params[k] = params[k-1] + 0.5 ;
-	params[k+M] = params[k+M-1] + 100 ;
-      } else {
-	params[k] = 1.0 ;
-	params[k+M] = 100. ;
-      }
-    } else {
-      // correct the params
-      #if (defined STANDARD)
-      params[ k ] = fabs( params[k] ) ;
-      #elif (defined SQUARED)
-      params[ k ] = sqrt( fabs( params[k] ) ) ;
-      params[k+M] = sqrt( fabs( params[k+M] ) ) ;
-      #elif (defined SUM)
-      params[ k ] = fabs( params[k] ) - summass ;
-      #elif (defined SQUARED_SUM)
-      params[ k ] = sqrt( fabs( fabs( params[k] ) - summasssq ) ) ;
-      params[k+M] = sqrt( fabs( params[k+M] ) ) ;
-      #endif
+    int i ;
+    for( i = 0 ; i < DATA -> NDATA[k] ; i++ ) {
+      tempdata[ i ] = DATA -> y[ xposit + i ] ;
     }
 
-    summass += params[k] ;
-    summasssq += ( params[k] * params[k] ) ;
-    #if (defined SQUARED) || (defined SQUARED_SUM)
-    sumamp += params[k+M] * params[k+M] ;
-    #else
-    sumamp += params[k+M] ;
-    #endif
+    double masses[ M ][ DATA -> NDATA[k] ] ;
+    blackbox( tempdata , DATA -> NDATA[k] , M , masses ) ;
 
-    for( i = 0 ; i < DATA -> NDATA[0] ; i++ ) {
-      #if defined STANDARD
-      tempdata[ i ] -= ( params[k+M] * exp( -( params[k] ) * DATA->X[i] ) ) ;
-      #elif defined SQUARED
-      tempdata[ i ] -= ( ( params[k+M] * params[k+M] ) * exp( -( params[k] * params[k] ) * DATA->X[i] ) ) ;
-      #elif defined SUM
-      tempdata[ i ] -= ( params[k+M] * exp( -( summass ) * DATA->X[i] ) ) ;
-      #elif defined SQUARED_SUM
-      tempdata[ i ] -= ( ( params[k+M] * params[k+M] ) * exp( -( summasssq ) * DATA->X[i] ) ) ;
-      #endif
+    int m ;
+    for( m = 0 ; m < M ; m++ ) {
+      params[0+2*m] = masses[m][0] ;
+      params[1+2*m] = (tempdata[1]+tempdata[2]) /			\
+	(exp( -masses[m][0]*DATA->X[xposit+1] )+exp( -masses[m][0]*DATA->X[xposit+2] )) ;
     }
+    struct x_descriptor X ;
+    mexp_description( "Multiexp" , params , X , NPARAMS ) ;
+    xposit += DATA->NDATA[k] ;
   }
-
-  // sort the guesses?
-
-  struct x_descriptor X ;
-  mexp_description( "Guess" , params , X , NPARAMS ) ;
 
   return ;
 }
 
-// evaluate the function
+// evaluate the function at the point "X" using the fitparams
 inline double
-mexp_eval( const double *__restrict p ,
+mexp_eval( const double *__restrict x ,
 	  const struct x_descriptor X ,
 	  const int NPARAMS )
 {
-  // is a big matrix multiply
-  register double sum = 0.0 , mass_sum = 0.0 ;
   int i ;
+  register double sum = 0.0 ;
   for( i = 0 ; i < M ; i++ ) {
-    #ifdef STANDARD
-    sum += exp( -p[ i ] * X.X ) * p[ i + M ] ;
-    #elif defined SQUARED
-    sum += exp( -( p[ i ] * p[ i ] ) * X.X ) * p[ i + M ] * p[ i + M ] ;
-    #elif defined SUM
-    mass_sum += ( p[ i ] ) ;
-    sum += exp( -mass_sum * X.X ) * ( p[ i + M ] ) ;
-    #elif defined SQUARED_SUM
-    mass_sum += ( p[ i ] * p[ i ] ) ;
-    sum += exp( -mass_sum * X.X ) * ( p[ i + M ] * p[ i + M ] ) ;
-    #endif
+    sum += x[1+2*i] * exp( -x[2*i] * X.X ) ;
+    if( fabs( x[2*i] ) > 10.0 ) {
+      sum *= 100 ;
+    }
+  }
+  if( x[0] > 0 ) {
+    sum += 100 ;
   }
   return sum ;
 }
@@ -232,8 +118,7 @@ mexp_f( const gsl_vector *__restrict x ,
        gsl_vector *__restrict f )
 {
   const struct data *DATA = (const struct data *)data ;
-  const double *params = set_params( x , 2*M ) ;
-  const struct mom_info dummy_mom ;
+  const double *params = set_params( x , DATA->LOGICAL_NPARS ) ;
 
   int NSIM , count = 0 , xposit = 0 ;
   for( NSIM = 0 ; NSIM < DATA->SIMS ; NSIM++ ) {
@@ -245,16 +130,21 @@ mexp_f( const gsl_vector *__restrict x ,
     const int hipos = find_idx( DATA->FIT_HI , DATA->X , xposit + DATA->NDATA[NSIM] , xposit ) ;
 
     // local parameters ...
-    double p[ 2*M ] ;
+    double p[ DATA->NPARAMS ] ;
     size_t i ;
-    for( i = 0 ; i < 2*M ; i++ ) {
-      p[ i ] = params[ loc_idx + i ] ;
+    for( i = 0 ; i < M ; i++ ) {
+      if( DATA->sim_params[ i ] == true ) {
+	p[ 2*i ] = params[ 2*i ] ;
+	p[ 2*i + 1 ] = params[ loc_idx + 2*i + 1 ] ;
+      } else {
+	p[ 2*i + 0 ] = params[ loc_idx + 2*i + 0 ] ;
+	p[ 2*i + 1 ] = params[ loc_idx + 2*i + 1 ] ;
+      }
     }
 
     for( i = lopos ; i <= hipos ; i++ ) {
-      const struct x_descriptor XAXIS = { DATA->X[i] , DATA->quarks[0] , dummy_mom , DATA->NDATA[NSIM] } ;
-      gsl_vector_set ( f , count , 
-		       ( mexp_eval( p , XAXIS , DATA->NPARAMS ) - DATA->y[i] ) / DATA->sigma[i] ) ;
+      const struct x_descriptor XAXIS = { DATA->X[i] } ;
+      gsl_vector_set( f , count , ( mexp_eval( p , XAXIS , DATA->NPARAMS ) - DATA->y[i] ) / DATA->sigma[i] ) ;
       count++ ;
     }
     xposit += DATA->NDATA[NSIM] ;
@@ -270,7 +160,7 @@ mexp_df( const gsl_vector *__restrict x,
 	gsl_matrix *__restrict J )
 {
   const struct data *DATA = (const struct data*)data ;
-  const double *params = set_params( x , 2*M ) ;
+  const double *params = set_params( x , DATA->LOGICAL_NPARS ) ;
 
   int count = 0 , NSIM , xposit = 0 ; 
   for( NSIM = 0 ; NSIM < DATA-> SIMS ; NSIM++ ) {
@@ -281,69 +171,31 @@ mexp_df( const gsl_vector *__restrict x,
 
     size_t i ; 
     for( i = lopos ; i <= hipos ; i++ ) {
-      const double _s = 1.0 / DATA->sigma[i] ;
 
-      // initialise whole column to zero
       int k ;
-      for( k = 0 ; k < 2*M ; k++ ) {
-	gsl_matrix_set ( J , count , k+loc_idx , 0.0 ) ;
+      // initialise whole column to zero
+      for( k = 0 ; k < DATA->LOGICAL_NPARS ; k++ ) {
+	gsl_matrix_set ( J , count , k ,  0.0 ) ;
       }
 
-
-#if (defined SUM) || (defined SQUARED_SUM)
-      double mass_sum = 0.0 , sumexp = 0.0 ;
+      // pretty hideous extension here
+      const double _s = 1.0 / DATA->sigma[i] ;
       for( k = 0 ; k < M ; k++ ) {
-	const double mass = params[k+loc_idx] ;
-	const double amp = params[k+M+loc_idx] ;
-	#if defined SUM
-	mass_sum += mass ;
-	sumexp += amp * exp( -( mass_sum ) * DATA->X[i] ) * _s ;
-	#elif defined SQUARED_SUM
-	mass_sum += mass * mass ;
-	sumexp += ( amp * amp ) * exp( -( mass_sum ) * DATA->X[i] ) * _s ;
-	#endif
+	if( DATA->sim_params[ k ] == true ) {
+	  double e = exp( -params[2*k] * DATA->X[i] ) * _s ;
+	  gsl_matrix_set ( J , count , 2*k , -DATA->X[i] * params[loc_idx+2*k+1] * e ) ;
+	  gsl_matrix_set ( J , count , loc_idx+1+2*k ,  e  ) ;
+	} else {
+	  double e = exp( -params[loc_idx+2*k] * DATA->X[i] ) * _s ;
+	  gsl_matrix_set ( J , count , loc_idx+2*k , -DATA->X[i] * params[loc_idx+2*k+1] * e ) ;
+	  gsl_matrix_set ( J , count , loc_idx+1+2*k ,  e  ) ;
+	}
       }
-      mass_sum = 0.0 ;
-      for( k = 0 ; k < M ; k++ ) {
-	const double mass = params[k+loc_idx] ;
-	const double amp = params[k+M+loc_idx] ;
-	#if defined SUM
-	mass_sum += mass ;
-	const double e = exp( -( mass_sum ) * DATA->X[i] ) * _s ;
-	gsl_matrix_set ( J , count , k+loc_idx , -DATA->X[i] * sumexp ) ;
-	gsl_matrix_set ( J , count , k+M+loc_idx , e ) ;
-	sumexp -= ( amp * e ) ;
-        #elif defined SQUARED_SUM
-	mass_sum += mass * mass ;
-	const double e = exp( -( mass_sum ) * DATA->X[i] ) * _s ;
-	gsl_matrix_set ( J , count , k+loc_idx , -2.0 * DATA->X[i] * mass * sumexp ) ;
-	gsl_matrix_set ( J , count , k+M+loc_idx , 2.0 * amp * e ) ;
-	sumexp -= ( amp * amp * e ) ;
-	#endif
-      }
-      //printf( "%e \n" , sumexp ) ;
-#else
-      for( k = 0 ; k < M ; k++ ) {
-	const double mass = params[k+loc_idx] ;
-	const double amp = params[k+M+loc_idx] ;
-	#ifdef STANDARD
-	const double e = exp( -params[k+loc_idx] * DATA->X[i] ) * _s ;
-	gsl_matrix_set ( J , count , k+loc_idx , -DATA->X[i] * params[k+M+loc_idx] * e ) ;
-	gsl_matrix_set ( J , count , k+M+loc_idx , e ) ;
-	#elif defined SQUARED
-	// squared parameters
-	const double e = exp( -( mass * mass ) * DATA->X[i] ) * _s ;
-	gsl_matrix_set ( J , count , k+loc_idx , -DATA->X[i] * 2.0 * amp * amp * mass * e ) ;
-	gsl_matrix_set ( J , count , k+M+loc_idx , 2.0 * amp * e ) ;
-	#endif
-      }
-#endif
-
+      
       count ++ ;
     }
     xposit += DATA->NDATA[NSIM] ;
   }
-
   free( (void*)params ) ;
 
   return GSL_SUCCESS;
@@ -351,9 +203,9 @@ mexp_df( const gsl_vector *__restrict x,
 
 int
 mexp_fdf(const gsl_vector *__restrict x , 
-	 void *data ,
-	 gsl_vector *__restrict f , 
-	 gsl_matrix *__restrict J )
+	void *data ,
+	gsl_vector *__restrict f , 
+	gsl_matrix *__restrict J )
 {
   mexp_f( x , data , f ) ;
   mexp_df( x , data , J ) ;

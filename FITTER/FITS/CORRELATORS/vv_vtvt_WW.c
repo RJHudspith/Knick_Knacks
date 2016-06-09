@@ -6,7 +6,7 @@
 #include "Utils.h"
 
 // cute little enum
-enum { VWVL , VWVW , VTWVTL , VTWVTW } ;
+enum { VWVL , VTWVTL , VWVW , VTWVTW } ;
 
 // provide a description of the function
 void

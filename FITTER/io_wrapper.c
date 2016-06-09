@@ -146,9 +146,17 @@ read_data( double ***X ,
     //*RAW = read_hirep_corr( X , INPARAMS , moms , NSLICES , INPARAMS->tfold ) ;
     *mominfo = full_zeromom( *X , INPARAMS->NDATA , *NSLICES ) ;
     break ;
+  case TETRA_MESONS :
+    *RAW = read_tetra_meson( X , INPARAMS , moms , NSLICES , INPARAMS->tfold  ) ;
+    *mominfo = full_zeromom( *X , INPARAMS->NDATA , *NSLICES ) ;
+    break ;
+  case TETRA_FULL :
+    *RAW = read_tetra_corr( X , INPARAMS , moms , NSLICES , INPARAMS->tfold  ) ;
+    *mominfo = full_zeromom( *X , INPARAMS->NDATA , *NSLICES ) ;    
+    break ;
   case TETRA_CORRELATORS :
     printf( "\n--> CORR Data Reading <--\n" ) ;
-    *RAW = read_tetras( X , INPARAMS , moms , NSLICES , INPARAMS->tfold  ) ;
+    *RAW = read_tetra_corr( X , INPARAMS , moms , NSLICES , INPARAMS->tfold  ) ;
     *mominfo = full_zeromom( *X , INPARAMS->NDATA , *NSLICES ) ;
     break ;
   case GEVP1_CORRELATORS :

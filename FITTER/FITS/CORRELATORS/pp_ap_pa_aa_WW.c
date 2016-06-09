@@ -127,7 +127,6 @@ PPAA_WW_guess( double *__restrict params ,
   params[2] = 6 ;
   params[3] = 24000 ;
   params[4] = 5000 ;
-  params[5] = 24000 ;
   return ;
 }
 

@@ -38,6 +38,8 @@
 #include "ama.h"
 #include "tetra_eval.h"
 #include "baryon_eval.h"
+#include "b_correlators.h"
+#include "tetra_eval_meson.h"
 
 int
 perform_analysis( double **xavg ,
@@ -71,9 +73,9 @@ perform_analysis( double **xavg ,
     tauvus3_eval( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT , true ) ;
     break ;
   case MASS_SPLITTINGS :
-    //mass_splittings_eval( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;
+    mass_splittings_eval( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;
     //mass_extrap( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;
-    mass_extrap2( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;
+    //mass_extrap2( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;
     break ;
   case DISPERSIONS :
     dispersions_eval( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;
@@ -101,13 +103,20 @@ perform_analysis( double **xavg ,
   case PP_CORRELATORS :
   case VV_CORRELATORS :
     correlator_eval( xavg , BOOT , mominfoavg , moms , INPARAMS , NSLICES , LT ) ;
+    //bmeson_eval( xavg , BOOT , mominfoavg , moms , INPARAMS , NSLICES , LT ) ;
     break ;
   case PP_BARYONS :
   case VV_BARYONS :
     baryon_eval( xavg , BOOT , mominfoavg , moms , INPARAMS , NSLICES , LT ) ;
     break ;
-  case TETRA_CORRELATORS :
+  case TETRA_FULL :
     tetra_eval( xavg , BOOT , mominfoavg , moms , INPARAMS , NSLICES , LT ) ;
+    break ;
+  case TETRA_MESONS :
+    tetra_eval_meson( xavg , BOOT , mominfoavg , moms , INPARAMS , NSLICES , LT ) ;
+    break ;
+  case TETRA_CORRELATORS :
+    tetra_eval_corr( xavg , BOOT , mominfoavg , moms , INPARAMS , NSLICES , LT ) ;
     break ;
   case FLOW_COUPLE :
     gradflow_inv( xavg , BOOT , mominfoavg , INPARAMS , NSLICES , LT ) ;

@@ -7,6 +7,9 @@
 #include "fitfunc.h"
 #include "Utils.h"
 
+// cute little enum
+enum { PWPL , AWAL , PWAL , AWPL , PWPW , AWAW , PWAW , AWPW } ;
+
 // provide a description of the function
 void
 PPAA_description( const char *message ,
@@ -115,13 +118,21 @@ PPAA_guess( double *__restrict params ,
     }
 
     params[0] = p[0] ;
-    params[1] = p[1] ;
 
     struct mom_info momdummy ;
     struct chiral qdummy ;
     struct x_descriptor X = { 0 , qdummy , momdummy , DATA->LT } ;
     PPAA_description( "PPAA guess" , p , X , 2 ) ;
   }
+
+  // ok guess the AWAL
+
+
+  params[1] = 24.72 ;
+  params[2] = 4.718 ;
+  params[3] = 16548 ;
+  params[4] = 10203 ;
+
   return ;
 }
 
@@ -131,15 +142,18 @@ PPAAc_eval( const double *__restrict x ,
 	    const struct x_descriptor X ,
 	    const size_t chan )
 {
-  switch( chan%4 ) {
-  case 0 : case 1 :
-    return x[1] * ( exp( -x[0] * X.X ) + exp( -x[0] * ( X.LT - X.X ) ) ) ;
-  case 2 : case 3 :
-    return x[1] * ( exp( -x[0] * X.X ) - exp( -x[0] * ( X.LT - X.X ) ) ) ;
-  } 
-  printf( "Should never reach here \n" ) ;
-  exit(1) ;
-  return -1 ;
+  switch( chan ) {
+    // WALL-LOCAL
+  case PWPL :
+    return x[3] * x[1] * ( exp( -x[0] * X.X ) + exp( -x[0] * ( X.LT - X.X ) ) ) ;
+  case AWAL :
+    return x[4] * x[2] * ( exp( -x[0] * X.X ) + exp( -x[0] * ( X.LT - X.X ) ) ) ;
+  case AWPL : // PWAL
+    return x[3] * x[2] * ( exp( -x[0] * X.X ) - exp( -x[0] * ( X.LT - X.X ) ) ) ;
+  case PWAL : // AWPL
+    return x[4] * x[1] * ( exp( -x[0] * X.X ) - exp( -x[0] * ( X.LT - X.X ) ) ) ;
+  }
+  return 0 ;
 }
 
 // compute the difference of the function from the data
@@ -162,16 +176,12 @@ PPAA_f( const gsl_vector *__restrict x ,
 				xposit + DATA->NDATA[NSIM] , xposit ) ;
     const int hipos = find_idx( DATA->FIT_HI , DATA->X , 
 				xposit + DATA->NDATA[NSIM] , xposit ) ;
-    // local parameters ...
-    double p[ 2 ] ;
-    p[ 0 ] = params[ 0 ] ;
-    p[ 1 ] = params[ NSIM + 1 ] ;
 
     size_t i ;
     for( i = lopos ; i <= hipos ; i++ ) {
       const struct x_descriptor XAXIS = { DATA->X[i] , dummy_chiral , dummy_mominfo , DATA -> LT } ;
       gsl_vector_set ( f , count , 
-		       ( PPAAc_eval( p , XAXIS , NSIM ) - DATA->y[i] ) / DATA->sigma[i] ) ;
+		       ( PPAAc_eval( params , XAXIS , NSIM ) - DATA->y[i] ) / DATA->sigma[i] ) ;
       count++ ;
     }
     xposit += DATA->NDATA[NSIM] ;
@@ -197,9 +207,6 @@ PPAA_df( const gsl_vector *__restrict x,
     const int hipos = find_idx( DATA->FIT_HI , DATA->X , 
 				xposit + DATA->NDATA[NSIM] , xposit ) ;
 
-    const size_t n = NSIM%4 ;
-    const size_t N = NSIM/4 ;
-
     size_t i ; 
     for( i = lopos ; i <= hipos ; i++ ) {
       const double _s = 1.0 / DATA->sigma[i] ;
@@ -218,18 +225,27 @@ PPAA_df( const gsl_vector *__restrict x,
       e1 = exp( -params[0] * fw ) * _s ;
       e2 = exp( -params[0] * bw ) * _s ;
 
-      //printf( "FUCKING %zu %zu \n" , n , N ) ;
       // and the shared ones
-      switch( n ) {
-      case 0 :
-      case 1 :
-	gsl_matrix_set ( J , count , 0 , -params[1+n+N*4] * ( fw * e1 + bw * e2 ) ) ;
-	gsl_matrix_set ( J , count , 1+n+N*4 ,  e1 + e2  ) ;
+      switch( NSIM ) {
+      case PWPL :
+	gsl_matrix_set ( J , count , 0 , -params[3] * params[1] * ( fw * e1 + bw * e2 ) ) ;
+	gsl_matrix_set ( J , count , 1 ,  params[3] * ( e1 + e2 ) ) ;
+	gsl_matrix_set ( J , count , 3 ,  params[1] * ( e1 + e2 ) ) ;
 	break ;
-      case 2 :
-      case 3 :
-	gsl_matrix_set ( J , count , 0 , -params[1+n+N*4] * ( fw * e1 - bw * e2 ) ) ;
-	gsl_matrix_set ( J , count , 1+n+N*4 , e1 - e2  ) ;
+      case AWAL :
+	gsl_matrix_set ( J , count , 0 , -params[4] * params[2] * ( fw * e1 + bw * e2 ) ) ;
+	gsl_matrix_set ( J , count , 2 ,  params[4] * ( e1 + e2 ) ) ;
+	gsl_matrix_set ( J , count , 4 ,  params[2] * ( e1 + e2 ) ) ;
+	break ;
+      case AWPL :
+	gsl_matrix_set ( J , count , 0 , -params[3] * params[2] * ( fw * e1 - bw * e2 ) ) ;
+	gsl_matrix_set ( J , count , 2 ,  params[3] * ( e1 - e2 ) ) ;
+	gsl_matrix_set ( J , count , 3 ,  params[2] * ( e1 - e2 ) ) ;
+	break ;
+      case PWAL :
+	gsl_matrix_set ( J , count , 0 , -params[4] * params[1] * ( fw * e1 - bw * e2 ) ) ;
+	gsl_matrix_set ( J , count , 1 ,  params[4] * ( e1 - e2 ) ) ;
+	gsl_matrix_set ( J , count , 4 ,  params[1] * ( e1 - e2 ) ) ;
 	break ;
       }
       count ++ ;
