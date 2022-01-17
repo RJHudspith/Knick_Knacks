@@ -1,7 +1,7 @@
 CC=clang
 
 INCDIR=$(PWD)/Include/
-CFLAGS=-Wall -O3 -I$(INCDIR)
+CFLAGS=-Wall -O3 -fPIC -I$(INCDIR)
 LDFLAGS=-lm
 LIBDIRS=./
 
@@ -17,7 +17,10 @@ TILDED := $(foreach dir,$(LIBDIRS),$(wildcard $(dir)/*~))
 INT: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
+Lib1D.so: $(OBJ)
+	$(CC) -fPIC -shared -o $@ $^
+
 .PHONY: clean
 
 clean:
-	rm -v $(OBJ) $(TILDED) $(INCDIR)/*~ INT
+	rm -v $(OBJ) $(TILDED) $(INCDIR)/*~ INT Lib1D.so

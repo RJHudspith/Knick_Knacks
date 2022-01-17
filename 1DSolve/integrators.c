@@ -263,11 +263,10 @@ radau5_step( double (*f)( const point P ) ,
 }
 
 // initialise our integration scheme
-Integrator
+void
 initialise_integrator( const integration_scheme schema , 
 		       const double tolerance )
 {
-  Integrator integrator ;
   integrator.nsteps = 0 ;
   integrator.notoksteps = 0 ;
   switch( schema ) {
@@ -344,7 +343,7 @@ initialise_integrator( const integration_scheme schema ,
     integrator.maxsteps = 20 ;
     break ;
   case RADAU5 : // implicit radau type1a method
-    integrator.step_fwd = radau5_step ; 
+    integrator.step_fwd = radau5_step ;
     integrator.adaptive_growth = -0.04 ; 
     integrator.adaptive_shrink = -0.03 ; 
     integrator.maxsteps = 20 ;
@@ -354,5 +353,5 @@ initialise_integrator( const integration_scheme schema ,
   integrator.adaptive_errcon = powl( 5.0/integrator.adaptive_safety , 
 				     1.0/integrator.adaptive_growth ) ;
   integrator.tolerance = tolerance ;
-  return integrator ;
+  fprintf( stdout , "Integrators initialised\n" ) ;
 }

@@ -30,4 +30,12 @@ typedef enum {
   RK3 , RK4 , RK4_38 , GAUSS4 , GAUSS5 , RADAU3 , RADAU5 
 } integration_scheme ;
 
+double
+integrate( double (*f)( const point P ) ,
+	   const double xstart , 
+	   const double xend ,
+	   const double ystart ) ;
+
+extern Integrator integrator ;
+
 #endif
