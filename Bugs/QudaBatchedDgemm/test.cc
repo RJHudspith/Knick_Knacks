@@ -1,5 +1,5 @@
 /**
-   Test the laphBaryonTripletB code in my fork of quda
+   Test the Batched BLAS gemms
  */
 #include "QudaLaphIncludes.h"
 #include "init_quda_laph.h"
